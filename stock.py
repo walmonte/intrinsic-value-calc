@@ -104,14 +104,14 @@ class Stock:
             latest_cache = my_utils.parse_date(latest_cache)
 
         cache_is_too_old = (my_utils.get_todays_date() - latest_cache).days > 30
-        if cache_is_too_old or not os.path.isfile(CACHE_FILE) or (os.path.getsize(CACHE_FILE) == 0):
+        if cache_is_too_old or (not os.path.isfile(CACHE_FILE)) or (os.path.getsize(CACHE_FILE) == 0):
             with open(CACHE_FILE, mode='w', newline='') as f:
                 headers = ['symbol', 'name', 'fcc', 'cash', 'total_debt',
                            'shares', 'beta', 'eps_next_5y', 'current_price',
                            'fair_price', 'price_to_book', 'PV']
                 writer = csv.writer(f)
                 writer.writerow(headers)
-            logging.info('Cache file was over 30 days old, doesn\'t exist or is empty. It was successfully cleaned.')
+            logging.info("Cache file was over 30 days old, didn't exist or was empty. It was set to have headers only.")
             return False
 
         with open(CACHE_FILE, mode='r') as csv_file:
