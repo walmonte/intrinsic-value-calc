@@ -1,9 +1,11 @@
 import csv
 import logging
+import os
 import traceback
 import requests
 import my_utils
 
+CACHE_FILE = 'data/cache.csv'
 LOG_FORMAT = '[%(asctime)s] %(process)d - %(levelname)s - %(message)s'
 
 logging.basicConfig(filename=f'logs/{my_utils.get_todays_date()}.log', filemode='a', format=LOG_FORMAT,
@@ -101,17 +103,18 @@ class Stock:
             latest_cache = f.read()
             latest_cache = my_utils.parse_date(latest_cache)
 
-        if (my_utils.get_todays_date() - latest_cache).days > 30:
-            with open('data/cache.csv', mode='w', newline='') as f:
-                fields = ['symbol', 'name', 'fcc', 'cash', 'total_debt',
-                          'shares', 'beta', 'eps_next_5y', 'current_price',
-                          'fair_price', 'price_to_book', 'PV']
+        cache_is_too_old = (my_utils.get_todays_date() - latest_cache).days > 30
+        if cache_is_too_old or not os.path.isfile(CACHE_FILE) or (os.path.getsize(CACHE_FILE) == 0):
+            with open(CACHE_FILE, mode='w', newline='') as f:
+                headers = ['symbol', 'name', 'fcc', 'cash', 'total_debt',
+                           'shares', 'beta', 'eps_next_5y', 'current_price',
+                           'fair_price', 'price_to_book', 'PV']
                 writer = csv.writer(f)
-                writer.writerow(fields)
-            logging.info('Cache file was over 30 days old. It was successfully cleaned.')
+                writer.writerow(headers)
+            logging.info('Cache file was over 30 days old, doesn\'t exist or is empty. It was successfully cleaned.')
             return False
 
-        with open('data/cache.csv', mode='r') as csv_file:
+        with open(CACHE_FILE, mode='r') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             line_count = 0
             for row in csv_reader:
@@ -159,7 +162,7 @@ class Stock:
                   self.shares, self.beta, self.eps_next_5y, self.current_price,
                   self.fair_price, self.price_to_book, self.PV]
 
-        with open('data/cache.csv', mode='a', newline='', encoding='utf-8') as f:
+        with open(CACHE_FILE, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(fields)
 
