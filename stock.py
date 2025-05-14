@@ -30,6 +30,11 @@ class Stock:
         self.get_data(DataService())
 
     def get_data(self, data_service=None):
+        """
+        Fetches data for the stock from the API or from a CSV file.
+        :param data_service: A DataService object to fetch data from the API.
+        :return: void
+        """
         if not self.get_data_from_csv():
             try:
                 response = data_service.fetch_all_data(self.symbol)
@@ -75,6 +80,10 @@ class Stock:
             self.compute_valuation()
 
     def compute_valuation(self):
+        """
+        Computes the valuation of the stock using the Discounted Cash Flow (DCF) method.
+        :return: void
+        """
         eps_6_to_10y = self.eps_next_5y / 2
         eps_10to_20y = 0.04
         wacc = float(utils.find_wacc(self.beta))
@@ -98,6 +107,11 @@ class Stock:
         self.save_data_to_csv()
 
     def get_data_from_csv(self):
+        """
+        Retrieves data from the cache CSV file. If the cache is older than 30 days,
+        doesn't exist, or is empty, it creates a new cache file with headers only.
+        :return: True if data was found in the cache, False otherwise.
+        """
         with open('data/date_of_last_cache.txt', mode='r', newline='', encoding='utf-8') as f:
             latest_cache = f.read()
             latest_cache = utils.parse_date(latest_cache)
@@ -134,6 +148,10 @@ class Stock:
         return False
 
     def save_data_to_csv(self):
+        """
+        Saves the stock data to the cache CSV file.
+        :return: void
+        """
         fields = [self.symbol, self.name, self.free_cash_flow, self.cash, self.total_debt,
                   self.outstanding_shares, self.beta, self.eps_next_5y, self.current_price,
                   self.fair_price, self.price_to_book, self.present_value]
@@ -147,6 +165,10 @@ class Stock:
             LOGGER.info('Updated date of last cache.')
 
     def get_as_row(self):
+        """
+        Returns a list representing the stock data in a row format for display.
+        :return: An instance of Stock as a list.
+        """
         try:
             row = [self.symbol,
                    self.name,

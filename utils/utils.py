@@ -60,36 +60,7 @@ def safe_float(i):
         return 0.0
     return float(i)
 
-### API utils
-def build_url(func, symbol, api_key):
-    base = 'https://www.alphavantage.co/query?'
-    function = f'function={func.upper()}&'
-    symbol_api_key = f'symbol={symbol}&apikey={api_key}'
-    return base + function + symbol_api_key
-
-def bad_response(resp):
-    if 'Note' in resp:
-        print('API REQUEST LIMIT HAS BEEN REACHED.')
-        logging.error("Bad response due to going over API limits")
-        return True
-    return False
-
 def format_currency(amount, local_str=''):
-    """
-    Formats a currency amount to millions or billions based on its value,
-    using the specified locale for currency formatting.
-
-    Args:
-        amount (float): The currency amount to format.
-        local_str (str, optional): The locale string to use (e.g., 'en_US.UTF-8', 'de_DE.UTF-8').
-                                     If empty, it uses the default locale. Defaults to ''.
-
-    Returns:
-        str: The formatted currency string in millions or billions with the
-             appropriate currency symbol and locale-specific formatting.
-             Returns the original formatted amount if it's less than a million.
-             Returns "N/A" if the locale setting fails.
-    """
     try:
         if local_str:
             locale.setlocale(locale.LC_ALL, local_str)

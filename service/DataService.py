@@ -18,7 +18,8 @@ class DataService:
     def fetch_data(self, url):
         """
         Fetches data from the given URL and returns the JSON response.
-        If the response is empty or contains an error message, it returns None.
+        :param url: The URL to fetch data from.
+        :return: The JSON response or None if the response is empty or contains an error.
         """
         try:
             LOGGER.info(f"Fetching data from URL: {url}")
@@ -40,7 +41,8 @@ class DataService:
     def fetch_all_data(self, symbol):
         """
         Fetches all relevant data for the given symbol from the Alpha Vantage API.
-        Returns a dictionary containing the fetched data.
+        :param symbol: The stock symbol to fetch data for.
+        :return: A dictionary containing the fetched data or None if any data is missing.
         """
         data = {}
         for func in ApiFunction:
