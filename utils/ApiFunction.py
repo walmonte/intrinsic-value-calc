@@ -11,6 +11,7 @@ class ApiFunction(Enum):
     BALANCE_SHEET = ('BALANCE_SHEET', 'balance_sheet')
     OVERVIEW = ('OVERVIEW', 'overview')
     GLOBAL_QUOTE = ('GLOBAL_QUOTE', 'global_quote')
+    EARNINGS = ('EARNINGS', 'earnings')
 
     def get_url(self):
         return BASE_URL.format(self.value[0], '{}')

@@ -8,7 +8,7 @@ from datetime import date
 from service.DataService import DataService
 
 
-CACHE_FILE = 'data/cache.csv'
+CACHE_FILE = 'C:\\projects\\intrinsic-value-calc\\data\\cache.csv'
 LOGGER = logging.getLogger()
 
 
@@ -35,7 +35,8 @@ class Stock:
         :param data_service: A DataService object to fetch data from the API.
         :return: void
         """
-        if not self.get_data_from_csv():
+        # TODO: uncomment call to get_data_from_csv()
+        if 1==1:#not self.get_data_from_csv():
             try:
                 response = data_service.fetch_all_data(self.symbol)
                 if response is None:
@@ -46,6 +47,7 @@ class Stock:
                     balance_sheet = response['balance_sheet']
                     overview = response['overview']
                     global_quote = response['global_quote']
+                    earnings = response['earnings']
 
                 op_cashflow = utils.safe_float(cash_flow['operatingCashflow'])
                 capex = utils.safe_float(cash_flow['capitalExpenditures'])
@@ -60,6 +62,7 @@ class Stock:
                 self.outstanding_shares = utils.safe_float(overview['SharesOutstanding'])
 
                 self.current_price = utils.safe_float(global_quote['05. price'])
+                self.calculate_eps_next_5y(earnings)
             except ValueError:
                 print("ValueError: Could not convert data to float.")
                 print(traceback.format_exc())
@@ -78,6 +81,25 @@ class Stock:
                 return
 
             self.compute_valuation()
+
+    def calculate_eps_next_5y(self, earnings):
+        """
+        Calculates the expected EPS growth for the next 5 years using data from the previous 10 years.
+        :param earnings: The earnings data fetched from the API.
+        :return: void
+        """
+        periods = len(earnings)
+        if periods < 1 or earnings[0]['reportedEPS'] is None:
+            self.eps_next_5y = 0.0
+        else:
+            latest_eps = utils.safe_float(earnings[0]['reportedEPS'])
+            oldest_eps = utils.safe_float(earnings[-1]['reportedEPS'])
+            eps_cagr = utils.calculate_compound_annual_growth_rate(latest_eps, oldest_eps, periods)
+            LOGGER.info(f"[{self.symbol}] EPS CAGR: {eps_cagr*100:.2f}% over {periods} periods.")
+
+            eps_next_5y = latest_eps * ((1 + eps_cagr) ** periods) # Calculate the EPS for the next 5 years
+            self.eps_next_5y = eps_next_5y / 2 # Adjusting to make valuations more conservative
+            # print(f"[{self.symbol}] EPS next 5 years: {self.eps_next_5y:.2f} ({eps_cagr*100:.2f}%)")
 
     def compute_valuation(self):
         """
@@ -102,9 +124,16 @@ class Stock:
             discounted_cashflow += cashflow_10y * (1 + eps_10to_20y) ** i * discount_factor ** (i + 10)
 
         self.present_value = self.cash - self.total_debt + discounted_cashflow  # PV = present value
+        # print(f"[{self.symbol}] free_cash_flow: {self.free_cash_flow:,.2f}")
+        # print(f"[{self.symbol}] Cash: {self.cash:,.2f}")
+        # print(f"[{self.symbol}] Total Debt: {self.total_debt:,.2f}")
+        # print(f"[{self.symbol}] Discounted Cashflows: {discounted_cashflow:,.2f}")
+        # print(f"[{self.symbol}] Present Value: {self.present_value:,.2f}")
+        # TODO: fix fair price calculation
         self.fair_price = self.present_value / self.outstanding_shares
 
-        self.save_data_to_csv()
+        # TODO: uncomment call to save_data_to_csv()
+        # self.save_data_to_csv()
 
     def get_data_from_csv(self):
         """
@@ -177,7 +206,7 @@ class Stock:
                    utils.format_currency(float(self.current_price)),
                    utils.format_currency(float(self.fair_price)),
                    '{:,.2f}'.format(float(self.price_to_book)),
-                   '{:,.0f}%'.format(float(self.fair_price / self.current_price * 100))]
+                   '{:,.0f}%'.format(float(self.current_price / self.fair_price * 100))]
         except TypeError:
             row = [self.symbol, self.name, 'n/a', 'n/a', 'n/a', 'n/a', 'n/a', 'n/a']
             LOGGER.warning(f'[{self.symbol}] TypeError when getting table row.')

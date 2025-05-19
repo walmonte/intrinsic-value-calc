@@ -5,7 +5,7 @@ from datetime import date
 from time import sleep, ctime
 from winsound import Beep
 
-
+LOG = logging.getLogger()
 ### Logger utils
 
 def set_up_logger():
@@ -28,10 +28,47 @@ def csv_to_map(file_path):
             data_map[key] = value
     return data_map
 
-def write_to_csv(table):
-    with open(f'data/results/{date.today()}-results.csv', mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerows(table)
+def text_to_list(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            data_list = [line.rstrip('\n') for line in file]
+            return data_list
+    except FileNotFoundError:
+        msg = f"Error: File not found at {file_path}"
+        print(msg)
+        LOG.info(msg)
+        return None
+    except Exception as e:
+        msg = f"An error occurred while reading the file: {e}"
+        print(msg)
+        LOG.info(msg)
+        return None
+
+def write_list_to_text_file(data_list, file_path):
+    try:
+        with open(file_path, 'w') as file:
+            for item in data_list:
+                file.write(str(item) + '\n')
+        msg = f"List successfully written to {file_path}"
+        print(msg)
+        LOG.info(msg)
+    except Exception as e:
+        msg = f"An error occurred while writing to CSV: {e}"
+        print(msg)
+        LOG.info(msg)
+
+def write_to_csv(table, file_path):
+    try:
+        with open(file_path, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerows(table)
+        msg = f"List successfully written to {file_path}"
+        print(msg)
+        LOG.info(msg)
+    except Exception as e:
+        msg = f"An error occurred while writing to CSV: {e}"
+        print(msg)
+        LOG.info(msg)
 
 
 ### Calc utils
@@ -54,6 +91,12 @@ def find_wacc(beta: float):
         return 0.085
     else:
         return 0.09
+
+def calculate_compound_annual_growth_rate(start_value: float, end_value: float, periods: int):
+    if start_value <= 0 or periods <= 0:
+        return 0.0
+    return ((end_value / start_value) ** (1 / periods)) - 1
+
 
 def safe_float(i):
     if i == 'None':

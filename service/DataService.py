@@ -51,6 +51,8 @@ class DataService:
                     data[func.get_json_name()] = self.fetch_data(func.get_url().format(symbol))
                 case ApiFunction.GLOBAL_QUOTE:
                     data[func.get_json_name()] = self.fetch_data(func.get_url().format(symbol))['Global Quote']
+                case ApiFunction.EARNINGS:
+                    data[func.get_json_name()] = self.fetch_data(func.get_url().format(symbol))['annualEarnings']
                 case _:
                     data[func.get_json_name()] = self.fetch_data(func.get_url().format(symbol))['annualReports'][0]
 
