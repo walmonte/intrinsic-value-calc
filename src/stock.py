@@ -5,14 +5,19 @@ import traceback
 
 from utils import utils
 from datetime import date
-from service.DataService import DataService
+from service.data_service import DataService
 
-
-CACHE_FILE = 'data/cache.csv'
-LOGGER = logging.getLogger()
+BASE_DIR = 'C:\\projects\\intrinsic-value-calc'
+CACHE_FILE = f'{BASE_DIR}\\data\\cache.csv'
+LAST_CACHE_DT_FILE = f'{BASE_DIR}\\data\\date_of_last_cache.txt'
+CACHE_USEFUL_LIFE = 30  # days
+LOGGER = logging.getLogger(__name__)
 
 
 class Stock:
+    """
+    A class representing a stock and its financial data.
+    """
     def __init__(self, symbol, eps_next_5y=None):
         self.symbol = symbol.upper()
         self.name = None
@@ -39,13 +44,14 @@ class Stock:
             try:
                 response = data_service.fetch_all_data(self.symbol)
                 if response is None:
-                    LOGGER.error(f"[{self.symbol}] Failed to fetch data from API.")
+                    LOGGER.warning("[%s] Failed to fetch data from API.", self.symbol)
                     return
-                else:
-                    cash_flow = response['cash_flow']
-                    balance_sheet = response['balance_sheet']
-                    overview = response['overview']
-                    global_quote = response['global_quote']
+
+                cash_flow = response['cash_flow']
+                balance_sheet = response['balance_sheet']
+                overview = response['overview']
+                global_quote = response['global_quote']
+                earnings = response['earnings']
 
                 op_cashflow = utils.safe_float(cash_flow['operatingCashflow'])
                 capex = utils.safe_float(cash_flow['capitalExpenditures'])
@@ -60,51 +66,71 @@ class Stock:
                 self.outstanding_shares = utils.safe_float(overview['SharesOutstanding'])
 
                 self.current_price = utils.safe_float(global_quote['05. price'])
+                self.calculate_eps_next_5y(earnings)
             except ValueError:
-                print("ValueError: Could not convert data to float.")
-                print(traceback.format_exc())
-                LOGGER.error(f"[{self.symbol}] ValueError: Could not convert data to float. "
-                              f"{traceback.format_exc()}")
+                LOGGER.error("ValueError: Could not convert data to float for [%s]. %s", self.symbol,
+                             traceback.format_exc())
                 return
             except KeyError as err:
-                print(f"{err}: missing key data point. Cancelling...")
-                print(traceback.format_exc())
-                LOGGER.error(f"[{self.symbol}] KeyError: missing key data point for {self.symbol}. "
-                              f"Cancelling... {traceback.format_exc()}")
+                LOGGER.error("KeyError: missing key data point for [%s]. Cancelling... %s", self.symbol, traceback.format_exc())
                 return
             except BaseException as err:
-                print(f"Unexpected {err=}, {type(err)=}")
-                LOGGER.error(f"[{self.symbol}] Unexpected {err=}, {type(err)=}. Traceback: {traceback.format_exc()}")
+                LOGGER.error("[%s] Unexpected %s, %s. Traceback: %s", self.symbol, err, type(err),
+                             traceback.format_exc())
                 return
 
             self.compute_valuation()
+
+    def calculate_eps_next_5y(self, earnings):
+        """
+        Calculates the expected EPS growth for the next 5 years using data from the previous `len(earnings)` years.
+        :param earnings: The earnings data fetched from the API.
+        :return: void
+        """
+        periods = len(earnings)
+        if periods < 1 or earnings[0]['reportedEPS'] is None:
+            self.eps_next_5y = 0.0
+        else:
+            latest_eps = utils.safe_float(earnings[0]['reportedEPS'])
+            oldest_eps = utils.safe_float(earnings[-1]['reportedEPS'])
+            eps_agr = utils.calculate_annual_growth_rate(latest_eps, oldest_eps, periods)
+
+            if eps_agr is None:
+                self.eps_next_5y = None
+                LOGGER.info("[%s] Calculated EPS AGR over the last %d periods: %s", self.symbol, periods, eps_agr)
+            else:
+                self.eps_next_5y = eps_agr / 2 # using half of AGR to get a conservative EPS estimate for the next 5 years
+                LOGGER.info("[%s] Calculated EPS AGR over the last %d periods: %.2f", self.symbol, periods, eps_agr*100)
 
     def compute_valuation(self):
         """
         Computes the valuation of the stock using the Discounted Cash Flow (DCF) method.
         :return: void
         """
-        eps_6_to_10y = self.eps_next_5y / 2
-        eps_10to_20y = 0.04
-        wacc = float(utils.find_wacc(self.beta))
-
-        discount_factor = 1 / (1 + wacc)
         discounted_cashflow = 0
-        for i in range(1, 6):
-            discounted_cashflow += self.free_cash_flow * (1 + self.eps_next_5y) ** i * discount_factor ** i
+        if self.eps_next_5y is not  None:
+            eps_6_to_10y = self.eps_next_5y / 2
+            eps_10to_20y = eps_6_to_10y / 2
+            wacc = float(utils.find_wacc(self.beta))
 
-        cashflow_5y = self.free_cash_flow * (1 + self.eps_next_5y) ** 5
-        for i in range(1, 6):
-            discounted_cashflow += cashflow_5y * (1 + eps_6_to_10y) ** i * discount_factor ** (i + 5)
+            discount_factor = 1 / (1 + wacc)
+            free_cashflow_today = self.free_cash_flow
 
-        cashflow_10y = cashflow_5y * (1 + eps_6_to_10y) ** 5
-        for i in range(1, 11):
-            discounted_cashflow += cashflow_10y * (1 + eps_10to_20y) ** i * discount_factor ** (i + 10)
+            for i in range(1, 6):
+                discounted_cashflow += free_cashflow_today * (1 + self.eps_next_5y) ** i * discount_factor ** i
 
-        self.present_value = self.cash - self.total_debt + discounted_cashflow  # PV = present value
-        self.fair_price = self.present_value / self.outstanding_shares
+            free_cashflow_year_5 = free_cashflow_today * (1 + self.eps_next_5y) ** 5
+            for i in range(1, 6):
+                discounted_cashflow += free_cashflow_year_5 * (1 + eps_6_to_10y) ** i * discount_factor ** (i + 5)
 
-        self.save_data_to_csv()
+            free_cashflow_year_10 = free_cashflow_year_5 * (1 + eps_6_to_10y) ** 5
+            for i in range(1, 11):
+                discounted_cashflow += free_cashflow_year_10 * (1 + eps_10to_20y) ** i * discount_factor ** (i + 10)
+
+            self.present_value = self.cash - self.total_debt + discounted_cashflow
+            self.fair_price = self.present_value / self.outstanding_shares
+
+            self.save_data_to_csv()
 
     def get_data_from_csv(self):
         """
@@ -112,11 +138,11 @@ class Stock:
         doesn't exist, or is empty, it creates a new cache file with headers only.
         :return: True if data was found in the cache, False otherwise.
         """
-        with open('data/date_of_last_cache.txt', mode='r', newline='', encoding='utf-8') as f:
+        with open(LAST_CACHE_DT_FILE, mode='r', newline='', encoding='utf-8') as f:
             latest_cache = f.read()
             latest_cache = utils.parse_date(latest_cache)
 
-        cache_is_too_old = (date.today() - latest_cache).days > 30
+        cache_is_too_old = (date.today() - latest_cache).days > CACHE_USEFUL_LIFE
         if cache_is_too_old or (not os.path.isfile(CACHE_FILE)) or (os.path.getsize(CACHE_FILE) == 0):
             with open(CACHE_FILE, mode='w', newline='') as f:
                 headers = ['symbol', 'name', 'fcc', 'cash', 'total_debt',
@@ -129,7 +155,6 @@ class Stock:
 
         with open(CACHE_FILE, mode='r') as csv_file:
             csv_reader = csv.DictReader(csv_file)
-            line_count = 0
             for row in csv_reader:
                 if row['symbol'].upper() == self.symbol:
                     self.name = row['name']
@@ -142,9 +167,10 @@ class Stock:
                     self.fair_price = float(row['fair_price'])
                     self.price_to_book = float(row['price_to_book'])
                     self.present_value = float(row['PV'])
-                    LOGGER.info(f'Retrieved {self.symbol} from cache.csv.')
+
+                    LOGGER.info('Retrieved [%s] from cache.csv.', self.symbol)
                     return True
-                line_count += 1
+
         return False
 
     def save_data_to_csv(self):
@@ -160,7 +186,7 @@ class Stock:
             writer = csv.writer(f)
             writer.writerow(fields)
 
-        with open('data/date_of_last_cache.txt', mode='w', newline='', encoding='utf-8') as f:
+        with open(LAST_CACHE_DT_FILE, mode='w', newline='', encoding='utf-8') as f:
             f.write(str(date.today()))
             LOGGER.info('Updated date of last cache.')
 
@@ -177,8 +203,8 @@ class Stock:
                    utils.format_currency(float(self.current_price)),
                    utils.format_currency(float(self.fair_price)),
                    '{:,.2f}'.format(float(self.price_to_book)),
-                   '{:,.0f}%'.format(float(self.fair_price / self.current_price * 100))]
-        except TypeError:
+                   '{:,.0f}%'.format(float(self.current_price / self.fair_price * 100))]
+        except TypeError as err:
             row = [self.symbol, self.name, 'n/a', 'n/a', 'n/a', 'n/a', 'n/a', 'n/a']
-            LOGGER.warning(f'[{self.symbol}] TypeError when getting table row.')
+            LOGGER.warning('[%s] TypeError when getting table row. Err: %s', self.symbol, err)
         return row
