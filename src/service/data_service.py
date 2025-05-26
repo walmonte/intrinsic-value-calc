@@ -1,7 +1,7 @@
 import logging
 import requests
-from utils import utils
-from utils.api_function_enum import ApiFunction
+from src.utils import utils
+from src.utils.api_function_enum import ApiFunction
 
 
 LOGGER = logging.getLogger(__name__)
@@ -24,21 +24,31 @@ class DataService:
         """
         function_name = func.get_json_name()
         url = func.get_url().format(symbol)
-        LOGGER.info("Fetching data for [%s] from '%s' endpoint...", symbol, function_name)
+        LOGGER.info(
+            "Fetching data for [%s] from '%s' endpoint...", symbol, function_name
+        )
 
         if self.request_count == 74:
             utils.take_break()
             self.request_count = 0
         self.request_count += 1
 
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         if response.status_code != 200:
-            LOGGER.warning("Error fetching data from '%s' endpoint: %d", function_name, response.status_code)
+            LOGGER.warning(
+                "Error fetching data from '%s' endpoint: %d",
+                function_name,
+                response.status_code,
+            )
             return None
 
         data = response.json()
         if not data:
-            LOGGER.warning("Request was successful, but no data was returned. Symbol [%s] is probably de-listed or traded over the counter.", symbol)
+            LOGGER.warning(
+                "Request was successful, but no data was returned. \
+                Symbol [%s] is probably de-listed or traded over the counter.",
+                symbol,
+            )
             return None
 
         LOGGER.info("Request was successful")
@@ -59,11 +69,11 @@ class DataService:
                 case ApiFunction.OVERVIEW:
                     data[func.get_json_name()] = response
                 case ApiFunction.GLOBAL_QUOTE:
-                    data[func.get_json_name()] = response['Global Quote']
+                    data[func.get_json_name()] = response["Global Quote"]
                 case ApiFunction.EARNINGS:
-                    data[func.get_json_name()] = response['annualEarnings']
+                    data[func.get_json_name()] = response["annualEarnings"]
                 case _:
-                    data[func.get_json_name()] = response['annualReports'][0]
+                    data[func.get_json_name()] = response["annualReports"][0]
 
         if len(data) != len(ApiFunction):
             LOGGER.warning("Failed to fetch all necessary data for symbol: %s", symbol)

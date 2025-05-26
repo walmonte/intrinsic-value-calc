@@ -1,8 +1,8 @@
 from pytickersymbols import PyTickerSymbols
-from utils import utils
+from src.utils import utils
 
-PATH_TO_FILE = 'C:\\projects\\intrinsic-value-calc\\data\\symbols\\symbols.txt'
-OTC_EXCHANGES = ['OTCMKTS', 'PINK', 'OTCBB', 'OTCQB']  # exchanges to exclude
+PATH_TO_FILE = "C:\\projects\\intrinsic-value-calc\\data\\symbols\\symbols.txt"
+OTC_EXCHANGES = ["OTCMKTS", "PINK", "OTCBB", "OTCQB"]  # exchanges to exclude
 
 
 def clean_ticker_list(ticker_list):
@@ -12,10 +12,14 @@ def clean_ticker_list(ticker_list):
     :return: Cleaned list of ticker symbols.
     """
     return list(
-        map(lambda x: x.split(':')[1], filter(lambda x: x.split(':')[0].upper() not in OTC_EXCHANGES, ticker_list)))
+        map(
+            lambda x: x.split(":")[1],
+            filter(lambda x: x.split(":")[0].upper() not in OTC_EXCHANGES, ticker_list),
+        )
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # how to use this module https://github.com/portfolioplus/pytickersymbols
     stock_data = PyTickerSymbols()
 
